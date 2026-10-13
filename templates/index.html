@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semester Advisor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page">
+    <header class="masthead">
+      <p class="mark">CSC 303</p>
+      <h1>Semester<br>Advisor</h1>
+      <p class="intro">Tell it how this semester is going. It projects your CGPA and shows which habits would move it the most.</p>
+    </header>
+
+    <form id="habits" class="habits" novalidate>
+      <fieldset>
+        <legend>Where you are</legend>
+        <label class="field">
+          <span class="name">CGPA so far</span>
+          <output data-for="prev_cgpa"></output>
+          <input type="range" name="prev_cgpa" min="0" max="5" step="0.01" value="3.20">
+        </label>
+        <label class="field">
+          <span class="name">Units this semester</span>
+          <output data-for="course_units"></output>
+          <input type="range" name="course_units" min="12" max="30" step="1" value="24">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>How you study</legend>
+        <label class="field">
+          <span class="name">Lecture attendance</span>
+          <output data-for="attendance" data-unit="%"></output>
+          <input type="range" name="attendance" min="0" max="100" step="1" value="70">
+        </label>
+        <label class="field">
+          <span class="name">Study hours a week</span>
+          <output data-for="study_hours" data-unit=" hrs"></output>
+          <input type="range" name="study_hours" min="0" max="40" step="0.5" value="8">
+        </label>
+        <label class="field">
+          <span class="name">Assignments submitted</span>
+          <output data-for="assignments_done" data-unit="%"></output>
+          <input type="range" name="assignments_done" min="0" max="100" step="1" value="75">
+        </label>
+        <label class="field">
+          <span class="name">Average CA score</span>
+          <output data-for="ca_score" data-unit=" / 30"></output>
+          <input type="range" name="ca_score" min="0" max="30" step="1" value="18">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>How you rest</legend>
+        <label class="field">
+          <span class="name">Sleep a night</span>
+          <output data-for="sleep_hours" data-unit=" hrs"></output>
+          <input type="range" name="sleep_hours" min="3" max="10" step="0.5" value="5.5">
+        </label>
+      </fieldset>
+      <noscript><button type="submit">Get advice</button></noscript>
+    </form>
+
+    <main class="verdict" aria-live="polite">
+      <p class="headline">
+        You're heading for a
+        <strong id="projected" class="gpa">—</strong>
+        <span id="degree" class="degree"></span>
+      </p>
+      <p class="standing-line">
+        <span id="standing" class="standing" data-level=""></span>
+        <span class="likely">Likely range <strong id="range-text">—</strong></span>
+      </p>
+
+      <figure class="scale" aria-label="Your CGPA on the 5.0 scale">
+        <div class="bands">
+          <span style="--from:0;--to:1" data-l="F"></span>
+          <span style="--from:1;--to:1.5" data-l="P"></span>
+          <span style="--from:1.5;--to:2.4" data-l="3rd"></span>
+          <span style="--from:2.4;--to:3.5" data-l="2:2"></span>
+          <span style="--from:3.5;--to:4.5" data-l="2:1"></span>
+          <span style="--from:4.5;--to:5" data-l="1st"></span>
+        </div>
+        <div class="pins">
+          <span id="range" class="range" title="Likely range"></span>
+          <i id="pin-prev" class="pin prev"><b>Last semester <em></em></b></i>
+          <i id="pin-reach" class="pin reach"><b>Within reach <em></em></b></i>
+          <i id="pin-now" class="pin now"><b>Projected <em></em></b></i>
+        </div>
+      </figure>
+
+      <section class="advice">
+        <h2 id="advice-title">What would help most</h2>
+        <ul id="tips"></ul>
+        <p id="reach" class="reach-note"></p>
+      </section>
+
+      <p id="error" class="error" role="alert" hidden></p>
+    </main>
+
+    <section class="stats" aria-labelledby="stats-title">
+      <header class="stats-head">
+        <h2 id="stats-title">The numbers behind your projection</h2>
+        <p>Compared with {{ cohort_size }} students in the training data.</p>
+      </header>
+
+      <article class="panel compare">
+        <h3>Your habits next to other students</h3>
+        <p class="hint">The shaded bar is where the middle half of students sit. The tick is the typical student; the dot is you.</p>
+        <ul id="compare" class="compare-list"></ul>
+      </article>
+
+      <article class="panel sure">
+        <h3>How sure the model is</h3>
+        <ul id="probability" class="prob-list"></ul>
+        <dl class="scores">
+          <div><dt>Average error</dt><dd>±{{ '%.2f'|format(metrics.get('mae', 0)) }}</dd><dd class="sub">grade points</dd></div>
+          <div><dt>Variance explained</dt><dd>{{ (metrics.get('r2', 0) * 100)|round|int }}%</dd><dd class="sub">R² on test set</dd></div>
+          <div><dt>Standing accuracy</dt><dd>{{ (metrics.get('accuracy', 0) * 100)|round|int }}%</dd><dd class="sub">600 unseen students</dd></div>
+        </dl>
+      </article>
+
+      <article class="panel drivers">
+        <h3>What moves CGPA most</h3>
+        <p class="hint">How much each input counts in the model's decisions.</p>
+        <ul id="importance" class="imp-list"></ul>
+      </article>
+    </section>
+
+    <footer class="colophon">
+      Trained on 3,000 simulated students in Google Colab (Random Forest, scikit-learn).
+      Projections land within about {{ '%.2f'|format(metrics.get('mae', 0.22)) }} grade points on average.
+      Treat it as a nudge, not a verdict.
+    </footer>
+  </div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
